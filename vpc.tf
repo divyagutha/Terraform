@@ -44,25 +44,39 @@ resource "aws_route_table_association" "a" {
   subnet_id      = element(aws_subnet.public.*.id,count.index)
   route_table_id = aws_route_table.public_rt.id
 }
-
-=======PRIVATE SUBNET=============
+ ##=======PRIVATE SUBNET=============
 
 
 # Nat Gateway
-resource "aws_Nat_gateway" "terra_ngw" {
-  vpc_id = aws_vpc.terra_vpc.id
-  tags = {
-    Name = "main"
-  }
+#resource "aws_nat_gateway" "terra_ngw" {
+#  vpc_id = aws_vpc.terra_vpc.id
+#  tags = {
+#    Name = "main"
+#  }
+#}
+
+resource "aws_eip" "nat_eip" {
+  vpc        = true
+  depends_on = [aws_internet_gateway.terra_igw]
 }
 
+
+resource "aws_nat_gateway" "terra_ngw" {
+  allocation_id = "${aws_eip.nat_eip.id}"
+  subnet_id     = "${element(aws_subnet.public.*.id, 0)}"
+  depends_on    = [aws_internet_gateway.terra_igw]
+  tags = {
+    Name        = "nat"
+   # Environment = "${var.environment}"
+  }
+}
 # Subnets : private
 resource "aws_subnet" "private" {
   count = length(var.subnets_cidr)
   vpc_id = aws_vpc.terra_vpc.id
   cidr_block = element(var.subnets_cidr,count.index)
   availability_zone = element(var.azs,count.index)
-  map_private_ip_on_launch = true
+  map_public_ip_on_launch = false
   tags = {
     Name = "Subnet-${count.index+1}"
   }
@@ -73,7 +87,7 @@ resource "aws_route_table" "private_rt" {
   vpc_id = aws_vpc.terra_vpc.id
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_Nat_gateway.terra_ngw.id
+    gateway_id = aws_nat_gateway.terra_ngw.id
   }
   tags = {
     Name = "privateRouteTable"
